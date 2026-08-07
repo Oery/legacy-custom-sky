@@ -15,6 +15,19 @@ blend mode, and rotation.
 ![Custom night sky with moon and stars](docs/images/screenshot-night.png)
 ![Custom day sky with clouds](docs/images/screenshot-day.png)
 
+## Fog Blending
+
+Vanilla fog fades distant chunks to the dimension's own flat color, which looks out of place
+once a resource pack has replaced the sky above it. The **Fog Blending** setting (mod
+settings screen, via Mod Menu) instead fades distant fog toward the active custom sky, with
+three modes trading accuracy for performance:
+
+| Screenshot | Mode | Description |
+| --- | --- | --- |
+| <img src="docs/images/fog-per-pixel.png" width="320"> | **Per-Pixel** (default) | Terrain fog samples the actual custom sky per-pixel, so it matches what's really behind it in every direction. Most accurate; adds a small cost only where fog is actually visible on screen. |
+| <img src="docs/images/fog-directional.png" width="320"> | **Directional** | Fog fades toward a single color per frame, sampled from the custom sky in the direction the camera is facing. Cheaper than Per-Pixel, but the whole screen shares one flat fog color, which can look off with more detailed skies. |
+| <img src="docs/images/fog-vanilla.png" width="320"> | **Vanilla** | Fog ignores the custom sky entirely and behaves exactly like unmodded Minecraft. No performance cost. |
+
 ## Requirements
 
 - Minecraft 26.2
