@@ -14,6 +14,9 @@ import net.minecraft.client.CloudStatus;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.LevelTargetBundle;
+//? if 1.21.11 {
+/*import net.minecraft.client.renderer.state.CameraRenderState;
+*///?} else
 import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.world.level.material.FogType;
 import org.spongepowered.asm.mixin.Final;
@@ -84,10 +87,21 @@ public abstract class LevelRendererMixin {
 			// nothing will sample.
 			if (LegacyCustomSkyConfig.get().fogBlendMode == FogBlendMode.PER_PIXEL) {
 				float partialTick = mc.getDeltaTracker().getGameTimeDeltaPartialTick(false);
+				// GameRenderer.mainCamera() was getMainCamera() before 26.2 - confirmed
+				// via javap against each version's mapped jar (research/RESEARCH.md's
+				// decompile method wasn't needed for a plain accessor rename).
+				//? if <26.2 {
+				/*CustomSkyEnvironmentMap.update(mc.level.dimension().identifier(), mc.level, mc.gameRenderer.getMainCamera(), partialTick);
+				*///?} else
 				CustomSkyEnvironmentMap.update(mc.level.dimension().identifier(), mc.level, mc.gameRenderer.mainCamera(), partialTick);
 			}
 
 			RenderSystem.setShaderFog(skyFog);
+			// GameRenderer.mainRenderTarget() doesn't exist before 26.2; the same
+			// render target was reached via Minecraft.getMainRenderTarget() instead.
+			//? if <26.2 {
+			/*RenderTarget mainTarget = mc.getMainRenderTarget();
+			*///?} else
 			RenderTarget mainTarget = mc.gameRenderer.mainRenderTarget();
 			CustomSkyRenderer.render(mainTarget.getColorTextureView(), mainTarget.getDepthTextureView());
 		});
@@ -106,6 +120,18 @@ public abstract class LevelRendererMixin {
 	 * {@code SkyRendererMixin} targets {@code starBrightness}, by ordinal rather
 	 * than name, since there's only one local of this type in the method.
 	 */
+	// The method itself is named "render" only from 26.2 onward - 1.21.11 and
+	// 26.1 both still call it "renderLevel" (confirmed via decompiled sources,
+	// not assumed - this is a real hard-crash risk otherwise, since
+	// defaultRequire=1 makes an unmatched mixin target fail loudly rather than
+	// silently no-op). The CloudStatus local's ordinal (0) is unaffected by the
+	// rename or by 1.21.11 reading it via a method call
+	// (this.minecraft.options.getCloudsType()) instead of a field
+	// (this.optionsRenderState.cloudStatus) - @ModifyVariable's STORE matching
+	// only cares about the destination local's type, not the source expression.
+	//? if <26.2 {
+	/*@ModifyVariable(method = "renderLevel", at = @At("STORE"), ordinal = 0)
+	*///?} else
 	@ModifyVariable(method = "render", at = @At("STORE"), ordinal = 0)
 	private CloudStatus legacyCustomSky$suppressCloudsForCustomSky(final CloudStatus cloudStatus) {
 		LegacyCustomSkyConfig config = LegacyCustomSkyConfig.get();

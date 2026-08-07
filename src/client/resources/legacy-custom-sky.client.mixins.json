@@ -1,7 +1,7 @@
 {
 	"required": true,
 	"package": "dev.oery.legacycustomsky.client.mixin",
-	"compatibilityLevel": "JAVA_25",
+	"compatibilityLevel": "${java}",
 	"client": [
 		"AtmosphericFogEnvironmentMixin",
 		"ChunkSectionLayerMixin",

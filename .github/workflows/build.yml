@@ -9,6 +9,19 @@ on: [pull_request, push]
 jobs:
   build:
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        # One Stonecutter version node per leg, see stonecutter.properties.toml.
+        # 26.2 is this mod's actively-developed, known-working target and stays
+        # required. 1.21.11/26.1 are marked continue-on-error below: as of this
+        # writing they don't compile yet - large parts of the Blaze3D rendering
+        # API (RenderPass, CommandEncoder, DynamicUniforms, BindGroupLayout,
+        # GameRenderer accessors, ...) changed across these versions in ways
+        # well beyond simple ordinal/name swaps, discovered only once real
+        # per-node builds were attempted. Once that porting work lands, drop
+        # continue-on-error for those legs.
+        node: ["1.21.11", "26.1", "26.2"]
     steps:
       - name: checkout repository
         uses: actions/checkout@v6
@@ -17,13 +30,18 @@ jobs:
       - name: setup jdk
         uses: actions/setup-java@v5
         with:
+          # Highest per-node requirement (26.1/26.2 need 25); the foojay
+          # resolver convention auto-provisions JDK 21 for the 1.21.11 node's
+          # own toolchain.
           java-version: '25'
           distribution: 'microsoft'
       - name: make gradle wrapper executable
         run: chmod +x ./gradlew
       - name: build
-        run: ./gradlew build
+        continue-on-error: ${{ matrix.node != '26.2' }}
+        run: ./gradlew :${{ matrix.node }}:build
       - name: capture build artifacts
+        if: matrix.node == '26.2'
         uses: actions/upload-artifact@v7
         with:
           name: Artifacts

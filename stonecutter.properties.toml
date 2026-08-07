@@ -1,0 +1,30 @@
+# Centralized per-version mod properties.
+# See https://stonecutter.kikugie.dev/wiki/config/properties#centralized-properties
+
+mod.id = "legacy-custom-sky"
+mod.name = "Legacy Custom Sky"
+mod.group = "dev.oery.legacycustomsky"
+mod.version = "1.1.0"
+
+deps.fabric_loader = "0.19.3"
+loomx.loom_version = "1.17-SNAPSHOT"
+
+# 1.21.11 "Mounts of Mayhem" - last obfuscated, Java 21 release. Binding floor
+# for this mod: EnvironmentAttributes (used by AtmosphericFogEnvironmentMixin)
+# was introduced here.
+["1.21.11"]
+mod.mc_compat = "1.21.11"
+deps.fabric_api = "0.141.6+1.21.11"
+deps.modmenu = "17.0.0"
+
+# 26.1 "Tiny Takeover" - first unobfuscated, Java 25 release.
+["26.1"]
+mod.mc_compat = "~26.1"
+deps.fabric_api = "0.145.1+26.1"
+deps.modmenu = "18.0.0"
+
+# 26.2 "Chaos Cubed" - current actively-developed target.
+["26.2"]
+mod.mc_compat = "~26.2"
+deps.fabric_api = "0.156.0+26.2"
+deps.modmenu = "20.0.1"

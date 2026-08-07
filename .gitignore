@@ -5,6 +5,11 @@ build/
 out/
 classes/
 
+# stonecutter - per-node generated project dirs; only ever contain build
+# output (verified after the initial sync), nothing worth checking in.
+versions/
+.kotlin/
+
 # eclipse
 
 *.launch

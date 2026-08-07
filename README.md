@@ -30,17 +30,41 @@ three modes trading accuracy for performance:
 
 ## Requirements
 
-- Minecraft 26.2
-- Fabric Loader 0.19.3+
-- Fabric API
+Built with [Stonecutter](https://stonecutter.kikugie.dev/) for three Minecraft versions from
+one source tree - `EnvironmentAttributes` (used by `AtmosphericFogEnvironmentMixin`) was
+introduced in 1.21.11, which is this mod's binding floor.
+
+| Minecraft | Java | Fabric Loader | Fabric API |
+| --- | --- | --- | --- |
+| 1.21.11 | 21 | 0.19.3+ | 0.141.6+1.21.11 |
+| 26.1 | 25 | 0.19.3+ | 0.145.1+26.1 |
+| 26.2 | 25 | 0.19.3+ | 0.156.0+26.2 |
+
+> [!NOTE]
+> Only the 26.2 node currently builds. 1.21.11 and 26.1 have the Stonecutter scaffolding in
+> place but don't compile yet - Mojang changed significant parts of the Blaze3D rendering API
+> this mod uses (`RenderPass`, `CommandEncoder`, `DynamicUniforms`, `BindGroupLayout`,
+> `GameRenderer` accessors, ...) across these versions, which needs real per-version porting,
+> not just the ordinal-based mixin guards this scaffolding was originally built for.
 
 ## Building
+
+Builds the currently active version (see `stonecutter active` in `stonecutter.gradle.kts`,
+26.2 by default):
 
 ```
 ./gradlew build
 ```
 
+Builds all three versions and collects the jars into `build/libs/<mod version>/`:
+
+```
+./gradlew buildAndCollect
+```
+
 ## Running in a dev environment
+
+Runs the currently active version:
 
 ```
 ./gradlew runClient
