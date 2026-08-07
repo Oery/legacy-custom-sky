@@ -2,7 +2,7 @@
 	"schemaVersion": 1,
 	"id": "legacy-custom-sky",
 	"version": "${version}",
-	"name": "legacy-custom-sky",
+	"name": "Legacy Custom Sky",
 	"description": "Reimplements MCPatcher's Better Skies (Custom Sky) resource pack feature as a Fabric mod.",
 	"authors": ["oery", "claude-code"],
 	"contact": {},
