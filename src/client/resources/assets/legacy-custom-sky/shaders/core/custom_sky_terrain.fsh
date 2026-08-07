@@ -113,7 +113,16 @@ void main() {
         discard;
     }
 #endif
-    vec3 skyFogColor = texture(CustomSkyEnvMap, customSkyEquirectUv(worldDirection)).rgb;
     float fogValue = total_fog_value(sphericalVertexDistance, cylindricalVertexDistance, FogEnvironmentalStart, FogEnvironmentalEnd, FogRenderDistanceStart, FogRenderDistanceEnd);
-    fragColor = vec4(mix(color.rgb, skyFogColor, fogValue * FogColor.a), color.a);
+    float fogAlpha = fogValue * FogColor.a;
+    // The env map sample (and the atan/asin it takes to compute its UV) only
+    // matters where fog is actually visible - mix(color, x, 0.0) == color
+    // regardless of x, so skip it entirely for the common case of fragments well
+    // inside the fog-free range instead of paying for it on every terrain pixel
+    // on screen every frame.
+    vec3 skyFogColor = color.rgb;
+    if (fogAlpha > 0.0) {
+        skyFogColor = texture(CustomSkyEnvMap, customSkyEquirectUv(worldDirection)).rgb;
+    }
+    fragColor = vec4(mix(color.rgb, skyFogColor, fogAlpha), color.a);
 }

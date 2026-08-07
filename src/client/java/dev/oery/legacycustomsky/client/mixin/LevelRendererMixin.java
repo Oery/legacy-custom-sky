@@ -62,22 +62,16 @@ public abstract class LevelRendererMixin {
 		}
 
 		Minecraft mc = Minecraft.getInstance();
-		if (mc.level == null) {
+		if (mc.level == null || !CustomSkyManager.hasLayers(mc.level.dimension().identifier())) {
 			return;
 		}
 
-		// Re-baked every frame regardless of whether this dimension has an active
-		// custom sky, so CustomSkyEnvMap (sampled unconditionally by
-		// custom_sky_terrain.fsh) never holds stale content from a dimension switch -
-		// CustomSkyManager.compositeColorTowardDirection already falls back to a flat
-		// vanilla sky color per-texel when there's nothing custom to blend in, cheaply
-		// (an empty-layers check, not real compositing work).
+		// custom_sky_terrain.fsh (see ChunkSectionLayerMixin) only ever samples
+		// CustomSkyEnvMap when this dimension has an active custom sky - the
+		// hasLayers() check above already gates that, so there's nothing to keep
+		// fresh otherwise, and no update() call needed.
 		float partialTick = mc.getDeltaTracker().getGameTimeDeltaPartialTick(false);
 		CustomSkyEnvironmentMap.update(mc.level.dimension().identifier(), mc.level, mc.gameRenderer.mainCamera(), partialTick);
-
-		if (!CustomSkyManager.hasLayers(mc.level.dimension().identifier())) {
-			return;
-		}
 
 		FramePass pass = frame.addPass("legacy_custom_sky");
 		this.targets.main = pass.readsAndWrites(this.targets.main);

@@ -19,25 +19,23 @@ import net.minecraft.world.attribute.EnvironmentAttributes;
 import org.joml.Vector3f;
 
 /**
- * A small equirectangular texture, re-baked from the CPU every frame, holding
- * "what should distant terrain fade into if it's looking this direction" for the
- * current dimension - {@link CustomSkyLayer#colorTowardDirection} sampled across a
- * grid of directions instead of just the camera's own forward vector, so
- * {@code custom_sky_terrain.fsh} can look up a real per-pixel/per-direction fog
- * color instead of one flat value for the whole screen.
+ * A small equirectangular texture, periodically re-baked from the CPU (see
+ * {@link #UPDATE_INTERVAL_NANOS}), holding "what should distant terrain fade into
+ * if it's looking this direction" for the current dimension -
+ * {@link CustomSkyLayer#colorTowardDirection} sampled across a grid of directions
+ * instead of just the camera's own forward vector, so {@code custom_sky_terrain.fsh}
+ * can look up a real per-pixel/per-direction fog color instead of one flat value
+ * for the whole screen.
  *
  * <p>Deliberately CPU-computed (not a GPU-rendered cubemap): it reuses
  * {@link CustomSkyManager#activeLayers}/{@link CustomSkyManager#compositeColorTowardDirection}
  * exactly as-is (the same brightness-weighted layer compositing already used for
  * non-terrain fog), and avoids needing new per-blend-mode GPU pipelines or a real
- * hardware cubemap. Layer brightness/rotation is resolved once per frame via
+ * hardware cubemap. Layer brightness/rotation is resolved once per layer via
  * {@code activeLayers} (not once per texel - each layer's rotation involves real
- * trig, and redoing it {@link #WIDTH}x{@link #HEIGHT} times a frame was the
- * original, much slower version of this class), so per-texel work is just a cheap
- * linear combination (see {@link CustomSkyLayer.HorizonBasis}) - both that and the
- * deliberately coarse grid size keep this affordable to fully recompute every
- * frame, which matters since this is only ever sampled through terrain fog
- * (inherently blurry/distant, so it doesn't need fine angular resolution).
+ * trig, and redoing it {@link #WIDTH}x{@link #HEIGHT} times per bake was measured
+ * to roughly halve framerate), so per-texel work is just a cheap linear
+ * combination (see {@link CustomSkyLayer.HorizonBasis}).
  */
 public final class CustomSkyEnvironmentMap {
 	// Deliberately coarse: terrain fog is already blurred by distance/depth, and
@@ -49,10 +47,20 @@ public final class CustomSkyEnvironmentMap {
 	private static final int WIDTH = 32;
 	private static final int HEIGHT = 16;
 
+	// Sky color changes slowly - brightness fades over minutes, rotation is tied to
+	// the sun angle (a full day is a 20-real-minute cycle) - so re-baking and
+	// re-uploading this texture at full render framerate (measured: real cost, not
+	// just theoretical) buys nothing visible. 30 Hz is already far more often than
+	// this needs to change; ChunkSectionLayerMixin also only ever samples this
+	// texture when a custom sky is actually active, so update() is only called (see
+	// LevelRendererMixin) when there's something to bake in the first place.
+	private static final long UPDATE_INTERVAL_NANOS = 1_000_000_000L / 30;
+
 	private static @org.jspecify.annotations.Nullable NativeImage stagingImage;
 	private static @org.jspecify.annotations.Nullable GpuTexture texture;
 	private static @org.jspecify.annotations.Nullable GpuTextureView textureView;
 	private static @org.jspecify.annotations.Nullable GpuSampler sampler;
+	private static long lastUpdateNanos = Long.MIN_VALUE;
 
 	private CustomSkyEnvironmentMap() {
 	}
@@ -68,14 +76,19 @@ public final class CustomSkyEnvironmentMap {
 	}
 
 	/**
-	 * Re-bakes the whole texture for the current frame. Cheap even when no custom
-	 * sky is active for {@code dimensionId} - {@link CustomSkyManager#activeLayers}
-	 * returns an empty list in that case, and {@link CustomSkyManager#compositeColorTowardDirection}
-	 * falls back to returning {@code vanillaSkyColor} unchanged for every direction,
-	 * so the texture just becomes a flat copy of vanilla's own sky color, which is
-	 * exactly what the terrain shader should sample either way.
+	 * Re-bakes the whole texture, throttled to {@link #UPDATE_INTERVAL_NANOS} - see
+	 * the field doc for why redoing this every rendered frame was wasted work.
+	 * Only meaningful to call when {@code dimensionId} has an active custom sky
+	 * (callers should check {@code CustomSkyManager.hasLayers} first, as
+	 * {@code LevelRendererMixin} does); nothing samples this texture otherwise.
 	 */
 	public static void update(final Identifier dimensionId, final ClientLevel level, final Camera camera, final float partialTicks) {
+		long now = System.nanoTime();
+		if (now - lastUpdateNanos < UPDATE_INTERVAL_NANOS) {
+			return;
+		}
+
+		lastUpdateNanos = now;
 		ensureResources();
 
 		double worldTime = level.getDefaultClockTime() + partialTicks;
