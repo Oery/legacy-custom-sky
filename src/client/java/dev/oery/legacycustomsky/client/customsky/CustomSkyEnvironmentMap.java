@@ -31,11 +31,13 @@ import org.joml.Vector3f;
  * {@link CustomSkyManager#activeLayers}/{@link CustomSkyManager#compositeColorTowardDirection}
  * exactly as-is (the same brightness-weighted layer compositing already used for
  * non-terrain fog), and avoids needing new per-blend-mode GPU pipelines or a real
- * hardware cubemap. Layer brightness/rotation is resolved once per layer via
- * {@code activeLayers} (not once per texel - each layer's rotation involves real
- * trig, and redoing it {@link #WIDTH}x{@link #HEIGHT} times per bake was measured
- * to roughly halve framerate), so per-texel work is just a cheap linear
- * combination (see {@link CustomSkyLayer.HorizonBasis}).
+ * hardware cubemap. Layer brightness is resolved once per layer via
+ * {@code activeLayers} rather than once per texel; the per-layer rotation itself
+ * is still redone per {@link CustomSkyLayer#colorTowardDirection} call (an earlier
+ * attempt at hoisting that too caused a real visual regression - see that method's
+ * doc), but the deliberately small grid size plus {@link #UPDATE_INTERVAL_NANOS}
+ * throttling already cut the practical cost of this by two-plus orders of
+ * magnitude from where the framerate problem was first reported.
  */
 public final class CustomSkyEnvironmentMap {
 	// Deliberately coarse: terrain fog is already blurred by distance/depth, and
@@ -96,9 +98,9 @@ public final class CustomSkyEnvironmentMap {
 		float sunAngleDegrees = camera.attributeProbe().getValue(EnvironmentAttributes.SUN_ANGLE, partialTicks);
 		int vanillaSkyColor = camera.attributeProbe().getValue(EnvironmentAttributes.SKY_COLOR, partialTicks);
 
-		// Brightness/rotation resolved once per layer here, not per texel below -
-		// see the class doc for why that mattered.
-		List<CustomSkyManager.PreparedLayer> activeLayers = CustomSkyManager.activeLayers(dimensionId, worldTime, rainStrength, sunAngleDegrees);
+		// Brightness resolved once per layer here, not per texel below - see the
+		// class doc for why that mattered.
+		List<CustomSkyManager.PreparedLayer> activeLayers = CustomSkyManager.activeLayers(dimensionId, worldTime, rainStrength);
 
 		Vector3f direction = new Vector3f();
 		for (int y = 0; y < HEIGHT; y++) {
@@ -112,7 +114,7 @@ public final class CustomSkyEnvironmentMap {
 				float azimuth = (float) (((x + 0.5) / WIDTH - 0.5) * 2.0 * Math.PI);
 				direction.set(cosElevation * Math.sin(azimuth), sinElevation, cosElevation * Math.cos(azimuth));
 
-				int color = CustomSkyManager.compositeColorTowardDirection(activeLayers, direction, vanillaSkyColor);
+				int color = CustomSkyManager.compositeColorTowardDirection(activeLayers, direction, sunAngleDegrees, vanillaSkyColor);
 				stagingImage.setPixel(x, y, color);
 			}
 		}

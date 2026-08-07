@@ -330,76 +330,50 @@ public final class CustomSkyLayer {
 	}
 
 	/**
-	 * The (fixed -90deg Y offset, then this layer's own day-rotation) transform
-	 * {@code CustomSkyRenderer.drawLayer()} applies to the raw cube geometry before
-	 * drawing it, precomputed once - see {@link #colorTowardDirection}. Represented
-	 * as where it sends the raw +X/+Z basis vectors rather than as a matrix/quaternion,
-	 * since {@link #colorTowardDirection} only ever needs to rotate horizontal
-	 * (Y=0) directions, and rotation is linear: {@code R(dx*X + dz*Z) == dx*R(X) +
-	 * dz*R(Z)}, so this is all it needs to reconstruct any rotated horizontal
-	 * direction with two multiplies and an add - no repeated trig.
-	 */
-	public record HorizonBasis(Vector3f rotatedX, Vector3f rotatedZ) {
-	}
-
-	/**
-	 * Precomputes this layer's current {@link HorizonBasis} for the frame. Call
-	 * once per layer per frame (this does real trig via JOML's rotate methods) and
-	 * reuse the result across every {@link #colorTowardDirection} call for that
-	 * frame - recomputing it per-direction is what made the terrain fog environment
-	 * map (many directions per frame, see {@code CustomSkyEnvironmentMap}) far more
-	 * expensive than it needed to be.
-	 *
-	 * @param sunAngleDegrees vanilla's current sun angle, same input {@link #rotationDegrees} uses
-	 */
-	public HorizonBasis horizonBasis(final float sunAngleDegrees) {
-		Vector3f rotatedX = new Vector3f(1.0F, 0.0F, 0.0F);
-		Vector3f rotatedZ = new Vector3f(0.0F, 0.0F, 1.0F);
-		float fixedYRadians = (float) Math.toRadians(-CustomSkyRenderer.FIXED_Y_ROTATION_DEGREES);
-		rotatedX.rotateY(fixedYRadians);
-		rotatedZ.rotateY(fixedYRadians);
-		if (this.rotate) {
-			float radians = (float) Math.toRadians(-this.rotationDegrees(sunAngleDegrees));
-			rotatedX.rotateAxis(radians, this.axisX, this.axisY, this.axisZ);
-			rotatedZ.rotateAxis(radians, this.axisX, this.axisY, this.axisZ);
-		}
-
-		return new HorizonBasis(rotatedX, rotatedZ);
-	}
-
-	/**
 	 * Approximates the color of this layer's skybox in an arbitrary world direction,
 	 * by picking/interpolating between the two nearest of the four cached
-	 * compass-face colors (see {@link #setHorizonColors}), using a {@link HorizonBasis}
-	 * precomputed once per frame via {@link #horizonBasis} (cheap - just the linear
-	 * combination described there - so this is safe to call for every texel of an
-	 * environment map, unlike redoing the rotation from scratch each time).
+	 * compass-face colors (see {@link #setHorizonColors}).
 	 *
 	 * <p>{@code ensureGeometry()}'s raw cube geometry places south/west/north/east at
 	 * world +Z/-X/-Z/+X (matching vanilla's own convention), but
-	 * {@code CustomSkyRenderer.drawLayer()} rotates that geometry on screen before
-	 * drawing it (what {@link HorizonBasis} captures) - so picking the right face
-	 * requires undoing that on the given direction first, to map it back into the
-	 * raw geometry's compass space.
+	 * {@code CustomSkyRenderer.drawLayer()} rotates that geometry on screen by a fixed
+	 * {@link CustomSkyRenderer#FIXED_Y_ROTATION_DEGREES} offset and then this layer's
+	 * own day-rotation before drawing it - so picking the right face requires undoing
+	 * both of those on the given direction first, in reverse order, to map it back
+	 * into the raw geometry's compass space.
+	 *
+	 * <p>An earlier revision tried precomputing this rotation once per layer per
+	 * frame (as a pair of rotated basis vectors, reconstructing each direction's
+	 * rotated form via linear combination instead of re-deriving the rotation every
+	 * call) to cut the cost of baking {@code CustomSkyEnvironmentMap}. That's
+	 * reverted here - a real-world sky pack rendered visibly wrong (a yellowish
+	 * fog cast) with it, and the exact cause wasn't pinned down with confidence
+	 * without a live GPU session to test against. {@code CustomSkyEnvironmentMap}'s
+	 * other, independently-verified-safe optimizations (smaller grid, per-frame
+	 * throttling, only running when a custom sky is actually active) already cut
+	 * the practical cost of calling this once per texel by two-plus orders of
+	 * magnitude, so redoing the rotation here per call is affordable again.
 	 *
 	 * @param direction any world-space direction (only the horizontal component is used)
+	 * @param sunAngleDegrees vanilla's current sun angle, same input {@link #rotationDegrees} uses
 	 */
-	public int colorTowardDirection(final Vector3fc direction, final HorizonBasis basis) {
-		float dx = direction.x();
-		float dz = direction.z();
-		if (dx * dx + dz * dz < 1.0E-8F) {
+	public int colorTowardDirection(final Vector3fc direction, final float sunAngleDegrees) {
+		Vector3f local = new Vector3f(direction.x(), 0.0F, direction.z());
+		if (local.lengthSquared() < 1.0E-8F) {
 			// Straight up/down: no single horizontal direction is more "toward" this
 			// layer than another, so just average all four faces evenly.
 			return ARGB.srgbLerp(0.5F, ARGB.srgbLerp(0.5F, this.southColor, this.eastColor), ARGB.srgbLerp(0.5F, this.northColor, this.westColor));
 		}
 
-		// R(dx*X + dz*Z) = dx*R(X) + dz*R(Z) - see HorizonBasis. atan2 is scale-invariant,
-		// so unlike the old per-call version, (dx, dz) doesn't need to be normalized first.
-		float localX = basis.rotatedX().x() * dx + basis.rotatedZ().x() * dz;
-		float localZ = basis.rotatedX().z() * dx + basis.rotatedZ().z() * dz;
+		local.normalize();
+		local.rotateY((float) Math.toRadians(-CustomSkyRenderer.FIXED_Y_ROTATION_DEGREES));
+		if (this.rotate) {
+			float angleDegrees = this.rotationDegrees(sunAngleDegrees);
+			local.rotateAxis((float) Math.toRadians(-angleDegrees), this.axisX, this.axisY, this.axisZ);
+		}
 
 		// south=+Z(0deg), east=+X(90deg), north=-Z(180deg), west=-X(270deg).
-		float angleDegrees = (float) Math.toDegrees(Math.atan2(localX, localZ));
+		float angleDegrees = (float) Math.toDegrees(Math.atan2(local.x, local.z));
 		if (angleDegrees < 0.0F) {
 			angleDegrees += 360.0F;
 		}

@@ -49,20 +49,20 @@ public final class CustomSkyManager {
 		return dimensionId != null && !layersFor(dimensionId).isEmpty();
 	}
 
-	/** A layer bundled with its per-frame {@link CustomSkyLayer#brightness}/{@link CustomSkyLayer.HorizonBasis}, see {@link #activeLayers}. */
-	public record PreparedLayer(CustomSkyLayer layer, float brightness, CustomSkyLayer.HorizonBasis basis) {
+	/** A layer bundled with its per-frame {@link CustomSkyLayer#brightness}, see {@link #activeLayers}. */
+	public record PreparedLayer(CustomSkyLayer layer, float brightness) {
 	}
 
 	/**
-	 * Resolves this dimension's active layers once per frame - brightness and
-	 * rotation both only depend on frame-global state (time, rain, sun angle), not
-	 * on which direction is being sampled - so {@link #compositeColorTowardDirection}
-	 * can cheaply reuse this same list across many directions (e.g. every texel of
-	 * {@code CustomSkyEnvironmentMap}) instead of redoing brightness/rotation work
-	 * per direction. Layers below the brightness threshold are dropped here so
+	 * Resolves this dimension's active layers once per frame - brightness only
+	 * depends on frame-global state (time, rain), not on which direction is being
+	 * sampled - so {@link #compositeColorTowardDirection} can cheaply reuse this
+	 * same list across many directions (e.g. every texel of
+	 * {@code CustomSkyEnvironmentMap}) instead of re-resolving/filtering the layer
+	 * list per direction. Layers below the brightness threshold are dropped here so
 	 * {@link #compositeColorTowardDirection} doesn't need to re-check per direction either.
 	 */
-	public static List<PreparedLayer> activeLayers(final Identifier dimensionId, final double worldTime, final float rainStrength, final float sunAngleDegrees) {
+	public static List<PreparedLayer> activeLayers(final Identifier dimensionId, final double worldTime, final float rainStrength) {
 		List<CustomSkyLayer> layers = layersFor(dimensionId);
 		if (layers.isEmpty()) {
 			return List.of();
@@ -75,7 +75,7 @@ public final class CustomSkyManager {
 				continue;
 			}
 
-			prepared.add(new PreparedLayer(layer, brightness, layer.horizonBasis(sunAngleDegrees)));
+			prepared.add(new PreparedLayer(layer, brightness));
 		}
 
 		return prepared;
@@ -91,7 +91,9 @@ public final class CustomSkyManager {
 	 * crosses the brightness threshold. Returns {@code vanillaSkyColor} unchanged if
 	 * {@code activeLayers} is empty.
 	 */
-	public static int compositeColorTowardDirection(final List<PreparedLayer> activeLayers, final Vector3fc direction, final int vanillaSkyColor) {
+	public static int compositeColorTowardDirection(
+		final List<PreparedLayer> activeLayers, final Vector3fc direction, final float sunAngleDegrees, final int vanillaSkyColor
+	) {
 		if (activeLayers.isEmpty()) {
 			return vanillaSkyColor;
 		}
@@ -101,7 +103,7 @@ public final class CustomSkyManager {
 		float green = 0.0F;
 		float blue = 0.0F;
 		for (PreparedLayer prepared : activeLayers) {
-			int color = prepared.layer().colorTowardDirection(direction, prepared.basis());
+			int color = prepared.layer().colorTowardDirection(direction, sunAngleDegrees);
 			red += ARGB.redFloat(color) * prepared.brightness();
 			green += ARGB.greenFloat(color) * prepared.brightness();
 			blue += ARGB.blueFloat(color) * prepared.brightness();
@@ -142,7 +144,7 @@ public final class CustomSkyManager {
 		float rainStrength = level.getRainLevel(partialTicks);
 		float sunAngleDegrees = camera.attributeProbe().getValue(EnvironmentAttributes.SUN_ANGLE, partialTicks);
 		Vector3fc forward = camera.isPanoramicMode() ? camera.panoramicForwards() : camera.forwardVector();
-		List<PreparedLayer> active = activeLayers(dimensionId, worldTime, rainStrength, sunAngleDegrees);
-		return compositeColorTowardDirection(active, forward, vanillaSkyColor);
+		List<PreparedLayer> active = activeLayers(dimensionId, worldTime, rainStrength);
+		return compositeColorTowardDirection(active, forward, sunAngleDegrees, vanillaSkyColor);
 	}
 }
