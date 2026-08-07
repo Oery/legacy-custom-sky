@@ -5,8 +5,10 @@ import dev.oery.legacycustomsky.client.config.FogBlendMode;
 import dev.oery.legacycustomsky.client.config.LegacyCustomSkyConfig;
 import dev.oery.legacycustomsky.client.customsky.CustomSkyManager;
 import dev.oery.legacycustomsky.client.customsky.CustomSkyTerrainPipelines;
+import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
+import net.minecraft.world.level.material.FogType;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -18,8 +20,14 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * {@code CUTOUT_TERRAIN}/{@code TRANSLUCENT_TERRAIN}, so terrain fog samples the
  * per-direction {@code CustomSkyEnvMap} instead of mixing to a flat color - but
  * only when {@link LegacyCustomSkyConfig#fogBlendMode} is
- * {@link FogBlendMode#PER_PIXEL} and the current dimension actually has an active
- * custom sky. Without this gate, every terrain fragment in every dimension
+ * {@link FogBlendMode#PER_PIXEL}, the current dimension actually has an active
+ * custom sky, and the camera is in plain atmospheric (distance) fog rather than
+ * {@link FogType#WATER}/{@link FogType#LAVA}/{@link FogType#POWDER_SNOW} - those
+ * fog types never mix with the sky in vanilla either (see
+ * {@code FogRenderer.computeFogColor}'s per-{@code FogEnvironment} color sources),
+ * so underwater/lava/powder-snow fog should keep fading to vanilla's own
+ * {@code FogColor} uniform instead of the custom-sky-blended {@code CustomSkyEnvMap}.
+ * Without the fogBlendMode/hasLayers part of this gate, every terrain fragment in every dimension
  * (including ones no pack targets, or with a cheaper blend mode selected) would
  * unconditionally pay for the extra texture sample + trig in
  * {@code custom_sky_terrain.fsh}, for no visual benefit - measured as part of a
@@ -43,6 +51,18 @@ public abstract class ChunkSectionLayerMixin {
 		if (mc.level == null
 			|| LegacyCustomSkyConfig.get().fogBlendMode != FogBlendMode.PER_PIXEL
 			|| !CustomSkyManager.hasLayers(mc.level.dimension().identifier())) {
+			return;
+		}
+
+		// Mirrors FogRenderer.getFogType(camera): FogType.NONE means "no fluid in the
+		// camera", i.e. plain atmospheric fog. WATER/LAVA/POWDER_SNOW fog colors never
+		// mix with the sky in vanilla, so leave those to the untouched vanilla pipeline.
+		//? if <26.2 {
+		/*Camera camera = mc.gameRenderer.getMainCamera();
+		*///?} else
+		Camera camera = mc.gameRenderer.mainCamera();
+		FogType fogType = camera.getFluidInCamera();
+		if (fogType != FogType.NONE && fogType != FogType.ATMOSPHERIC) {
 			return;
 		}
 
