@@ -69,7 +69,7 @@ public abstract class LevelRendererMixin {
 		// Re-baked every frame regardless of whether this dimension has an active
 		// custom sky, so CustomSkyEnvMap (sampled unconditionally by
 		// custom_sky_terrain.fsh) never holds stale content from a dimension switch -
-		// CustomSkyManager.skyColorTowardDirection already falls back to a flat
+		// CustomSkyManager.compositeColorTowardDirection already falls back to a flat
 		// vanilla sky color per-texel when there's nothing custom to blend in, cheaply
 		// (an empty-layers check, not real compositing work).
 		float partialTick = mc.getDeltaTracker().getGameTimeDeltaPartialTick(false);

@@ -10,6 +10,7 @@ import com.mojang.blaze3d.textures.FilterMode;
 import com.mojang.blaze3d.textures.GpuSampler;
 import com.mojang.blaze3d.textures.GpuTexture;
 import com.mojang.blaze3d.textures.GpuTextureView;
+import java.util.List;
 import java.util.OptionalDouble;
 import net.minecraft.client.Camera;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -26,16 +27,27 @@ import org.joml.Vector3f;
  * color instead of one flat value for the whole screen.
  *
  * <p>Deliberately CPU-computed (not a GPU-rendered cubemap): it reuses
- * {@link CustomSkyManager#skyColorTowardDirection} exactly as-is (the same
- * brightness-weighted layer compositing already used for non-terrain fog), and
- * avoids needing new per-blend-mode GPU pipelines or a real hardware cubemap - a
- * small texture (see {@link #WIDTH}/{@link #HEIGHT}) is cheap enough to fully
- * recompute on the CPU every frame, and this is only ever sampled through terrain
- * fog, which is inherently blurry/distant, so coarse resolution is fine.
+ * {@link CustomSkyManager#activeLayers}/{@link CustomSkyManager#compositeColorTowardDirection}
+ * exactly as-is (the same brightness-weighted layer compositing already used for
+ * non-terrain fog), and avoids needing new per-blend-mode GPU pipelines or a real
+ * hardware cubemap. Layer brightness/rotation is resolved once per frame via
+ * {@code activeLayers} (not once per texel - each layer's rotation involves real
+ * trig, and redoing it {@link #WIDTH}x{@link #HEIGHT} times a frame was the
+ * original, much slower version of this class), so per-texel work is just a cheap
+ * linear combination (see {@link CustomSkyLayer.HorizonBasis}) - both that and the
+ * deliberately coarse grid size keep this affordable to fully recompute every
+ * frame, which matters since this is only ever sampled through terrain fog
+ * (inherently blurry/distant, so it doesn't need fine angular resolution).
  */
 public final class CustomSkyEnvironmentMap {
-	private static final int WIDTH = 128;
-	private static final int HEIGHT = 64;
+	// Deliberately coarse: terrain fog is already blurred by distance/depth, and
+	// GPU bilinear filtering (see the sampler in ensureResources()) smooths between
+	// texels, so this doesn't need to resolve fine sky detail - it just needs to
+	// point terrain fog toward roughly the right part of the sky. Was 128x64
+	// (8192 texels) originally; that plus redoing each layer's rotation per texel
+	// (see the class doc) was measured to roughly halve framerate.
+	private static final int WIDTH = 32;
+	private static final int HEIGHT = 16;
 
 	private static @org.jspecify.annotations.Nullable NativeImage stagingImage;
 	private static @org.jspecify.annotations.Nullable GpuTexture texture;
@@ -57,10 +69,11 @@ public final class CustomSkyEnvironmentMap {
 
 	/**
 	 * Re-bakes the whole texture for the current frame. Cheap even when no custom
-	 * sky is active for {@code dimensionId} - {@link CustomSkyManager#skyColorTowardDirection}
-	 * already falls back to returning {@code vanillaSkyColor} unchanged for every
-	 * direction in that case, so the texture just becomes a flat copy of vanilla's
-	 * own sky color, which is exactly what the terrain shader should sample either way.
+	 * sky is active for {@code dimensionId} - {@link CustomSkyManager#activeLayers}
+	 * returns an empty list in that case, and {@link CustomSkyManager#compositeColorTowardDirection}
+	 * falls back to returning {@code vanillaSkyColor} unchanged for every direction,
+	 * so the texture just becomes a flat copy of vanilla's own sky color, which is
+	 * exactly what the terrain shader should sample either way.
 	 */
 	public static void update(final Identifier dimensionId, final ClientLevel level, final Camera camera, final float partialTicks) {
 		ensureResources();
@@ -69,6 +82,10 @@ public final class CustomSkyEnvironmentMap {
 		float rainStrength = level.getRainLevel(partialTicks);
 		float sunAngleDegrees = camera.attributeProbe().getValue(EnvironmentAttributes.SUN_ANGLE, partialTicks);
 		int vanillaSkyColor = camera.attributeProbe().getValue(EnvironmentAttributes.SKY_COLOR, partialTicks);
+
+		// Brightness/rotation resolved once per layer here, not per texel below -
+		// see the class doc for why that mattered.
+		List<CustomSkyManager.PreparedLayer> activeLayers = CustomSkyManager.activeLayers(dimensionId, worldTime, rainStrength, sunAngleDegrees);
 
 		Vector3f direction = new Vector3f();
 		for (int y = 0; y < HEIGHT; y++) {
@@ -82,7 +99,7 @@ public final class CustomSkyEnvironmentMap {
 				float azimuth = (float) (((x + 0.5) / WIDTH - 0.5) * 2.0 * Math.PI);
 				direction.set(cosElevation * Math.sin(azimuth), sinElevation, cosElevation * Math.cos(azimuth));
 
-				int color = CustomSkyManager.skyColorTowardDirection(dimensionId, direction, vanillaSkyColor, worldTime, rainStrength, sunAngleDegrees);
+				int color = CustomSkyManager.compositeColorTowardDirection(activeLayers, direction, vanillaSkyColor);
 				stagingImage.setPixel(x, y, color);
 			}
 		}

@@ -4,7 +4,7 @@
 // TERRAIN_SNIPPET), with the final apply_fog(...) call (fog.glsl) replaced by an
 // inlined equivalent that sources its "sky" color from a per-direction texture
 // (CustomSkyEnvMap, baked each frame by CustomSkyEnvironmentMap from
-// CustomSkyManager.skyColorTowardDirection) instead of the flat FogColor uniform.
+// CustomSkyManager.compositeColorTowardDirection) instead of the flat FogColor uniform.
 // Everything else - lightmap sampling, RGSS, alpha cutout, the distance falloff
 // math from fog.glsl - is untouched. See CustomSkyTerrainPipelines.
 
