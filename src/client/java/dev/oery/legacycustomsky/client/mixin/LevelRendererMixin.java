@@ -67,18 +67,26 @@ public abstract class LevelRendererMixin {
 			return;
 		}
 
-		// custom_sky_terrain.fsh (see ChunkSectionLayerMixin) only ever samples
-		// CustomSkyEnvMap when this dimension has an active custom sky AND
-		// FogBlendMode.PER_PIXEL is selected - matching that gate here too, so this
-		// doesn't do pointless work baking a texture nothing will sample.
-		if (LegacyCustomSkyConfig.get().fogBlendMode == FogBlendMode.PER_PIXEL) {
-			float partialTick = mc.getDeltaTracker().getGameTimeDeltaPartialTick(false);
-			CustomSkyEnvironmentMap.update(mc.level.dimension().identifier(), mc.level, mc.gameRenderer.mainCamera(), partialTick);
-		}
-
 		FramePass pass = frame.addPass("legacy_custom_sky");
 		this.targets.main = pass.readsAndWrites(this.targets.main);
 		pass.executes(() -> {
+			// Deferred into the frame graph's execution phase, like everything else
+			// here, instead of issuing the texture upload synchronously during graph
+			// construction (what an earlier version of this did) - GPU commands
+			// issued outside the frame graph's own ordering aren't guaranteed to be
+			// sequenced correctly relative to the terrain draw that samples this
+			// texture later in the same frame, which could plausibly explain terrain
+			// fog occasionally sampling an unwritten (black) texture.
+			//
+			// custom_sky_terrain.fsh (see ChunkSectionLayerMixin) only ever samples
+			// CustomSkyEnvMap when FogBlendMode.PER_PIXEL is selected - matching that
+			// gate here too, so this doesn't do pointless work baking a texture
+			// nothing will sample.
+			if (LegacyCustomSkyConfig.get().fogBlendMode == FogBlendMode.PER_PIXEL) {
+				float partialTick = mc.getDeltaTracker().getGameTimeDeltaPartialTick(false);
+				CustomSkyEnvironmentMap.update(mc.level.dimension().identifier(), mc.level, mc.gameRenderer.mainCamera(), partialTick);
+			}
+
 			RenderSystem.setShaderFog(skyFog);
 			RenderTarget mainTarget = mc.gameRenderer.mainRenderTarget();
 			CustomSkyRenderer.render(mainTarget.getColorTextureView(), mainTarget.getDepthTextureView());
