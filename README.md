@@ -10,6 +10,11 @@ A Fabric mod for Minecraft that reimplements MCPatcher's "Better Skies" custom s
 one or more skybox layers per dimension, each with its own texture, fade-in/out schedule,
 blend mode, and rotation.
 
+## Screenshots
+
+![Custom night sky with moon and stars](docs/images/screenshot-night.png)
+![Custom day sky with clouds](docs/images/screenshot-day.png)
+
 ## Requirements
 
 - Minecraft 26.2
