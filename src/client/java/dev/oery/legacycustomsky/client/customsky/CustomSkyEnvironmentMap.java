@@ -86,7 +86,15 @@ public final class CustomSkyEnvironmentMap {
 	 */
 	public static void update(final Identifier dimensionId, final ClientLevel level, final Camera camera, final float partialTicks) {
 		long now = System.nanoTime();
-		if (now - lastUpdateNanos < UPDATE_INTERVAL_NANOS) {
+		// lastUpdateNanos starts at Long.MIN_VALUE as a "never updated" sentinel;
+		// `now - Long.MIN_VALUE` overflows a signed long for any positive `now`
+		// (which System.nanoTime() always returns in practice), wrapping around to a
+		// huge *negative* number that's always < UPDATE_INTERVAL_NANOS - so the very
+		// first call (and, since lastUpdateNanos then never advances past the
+		// sentinel, every call after it) always hit the "too soon" branch below and
+		// this texture never actually got baked. Check the sentinel explicitly
+		// instead of letting the subtraction see it.
+		if (lastUpdateNanos != Long.MIN_VALUE && now - lastUpdateNanos < UPDATE_INTERVAL_NANOS) {
 			return;
 		}
 
