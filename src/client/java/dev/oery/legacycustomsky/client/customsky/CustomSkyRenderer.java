@@ -34,6 +34,18 @@ import org.joml.Vector4f;
  * Bottom|Top|South, bottom row West|North|East.
  */
 public final class CustomSkyRenderer {
+	/**
+	 * A coordinate-convention offset baked into this renderer's static cube geometry
+	 * (see {@link #ensureGeometry()}) - not part of any per-layer {@code rotate}/
+	 * {@code axis}/{@code speed} config. Applied unconditionally before each layer's
+	 * own rotation in {@link #drawLayer}; anything that needs to map a world-space
+	 * direction onto this cube's raw face geometry (e.g. picking which face is
+	 * currently visible toward a given direction, for fog color sampling) must undo
+	 * this same offset first, or it'll be off by the same amount the sky faces are
+	 * rotated on screen.
+	 */
+	public static final float FIXED_Y_ROTATION_DEGREES = -90.0F;
+
 	private static @org.jspecify.annotations.Nullable GpuBuffer cubeBuffer;
 	private static RenderSystem.@org.jspecify.annotations.Nullable AutoStorageIndexBuffer quadIndices;
 
@@ -92,7 +104,7 @@ public final class CustomSkyRenderer {
 		// it doesn't affect whether a face looks upside down (that's a rotation
 		// around the vertical axis), but it does rotate which wall each texture
 		// cell's edges line up with.
-		pose.rotate((float) Math.toRadians(-90.0), 0.0F, 1.0F, 0.0F);
+		pose.rotate((float) Math.toRadians(FIXED_Y_ROTATION_DEGREES), 0.0F, 1.0F, 0.0F);
 		if (layer.rotate()) {
 			float angleDegrees = layer.rotationDegrees(sunAngleDegrees);
 			pose.rotate((float) Math.toRadians(angleDegrees), layer.axisX(), layer.axisY(), layer.axisZ());

@@ -6,6 +6,7 @@ import com.mojang.blaze3d.framegraph.FramePass;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.systems.RenderSystem;
 import dev.oery.legacycustomsky.client.config.LegacyCustomSkyConfig;
+import dev.oery.legacycustomsky.client.customsky.CustomSkyEnvironmentMap;
 import dev.oery.legacycustomsky.client.customsky.CustomSkyManager;
 import dev.oery.legacycustomsky.client.customsky.CustomSkyRenderer;
 import net.minecraft.client.CloudStatus;
@@ -61,7 +62,20 @@ public abstract class LevelRendererMixin {
 		}
 
 		Minecraft mc = Minecraft.getInstance();
-		if (mc.level == null || !CustomSkyManager.hasLayers(mc.level.dimension().identifier())) {
+		if (mc.level == null) {
+			return;
+		}
+
+		// Re-baked every frame regardless of whether this dimension has an active
+		// custom sky, so CustomSkyEnvMap (sampled unconditionally by
+		// custom_sky_terrain.fsh) never holds stale content from a dimension switch -
+		// CustomSkyManager.skyColorTowardDirection already falls back to a flat
+		// vanilla sky color per-texel when there's nothing custom to blend in, cheaply
+		// (an empty-layers check, not real compositing work).
+		float partialTick = mc.getDeltaTracker().getGameTimeDeltaPartialTick(false);
+		CustomSkyEnvironmentMap.update(mc.level.dimension().identifier(), mc.level, mc.gameRenderer.mainCamera(), partialTick);
+
+		if (!CustomSkyManager.hasLayers(mc.level.dimension().identifier())) {
 			return;
 		}
 

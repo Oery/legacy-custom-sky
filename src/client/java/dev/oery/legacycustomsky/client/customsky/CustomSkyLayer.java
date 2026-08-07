@@ -5,8 +5,11 @@ import java.util.Properties;
 import net.minecraft.client.renderer.texture.AbstractTexture;
 import net.minecraft.client.renderer.texture.TextureManager;
 import net.minecraft.resources.Identifier;
+import net.minecraft.util.ARGB;
 import net.minecraft.util.Mth;
 import org.jspecify.annotations.Nullable;
+import org.joml.Vector3f;
+import org.joml.Vector3fc;
 
 /**
  * A single skybox layer parsed from one {@code sky<i>.properties} file, plus the
@@ -31,6 +34,16 @@ public final class CustomSkyLayer {
 	private final float axisZ;
 
 	private @Nullable AbstractTexture texture;
+
+	// Average color of a narrow band around the vertical midpoint of each side face's
+	// texture cell (the true horizon, not the zenith-ish top edge - see
+	// CustomSkyReloadListener.computeHorizonColors()), used to approximate what this
+	// layer contributes to distant fog. Default to opaque white so a decode failure
+	// (see CustomSkyReloadListener) degrades gracefully instead of crashing.
+	private int southColor = 0xFFFFFFFF;
+	private int westColor = 0xFFFFFFFF;
+	private int northColor = 0xFFFFFFFF;
+	private int eastColor = 0xFFFFFFFF;
 
 	private CustomSkyLayer(
 		final Identifier textureLocation,
@@ -262,6 +275,13 @@ public final class CustomSkyLayer {
 		return this.texture;
 	}
 
+	public void setHorizonColors(final int south, final int west, final int north, final int east) {
+		this.southColor = south;
+		this.westColor = west;
+		this.northColor = north;
+		this.eastColor = east;
+	}
+
 	public BlendMode blend() {
 		return this.blend;
 	}
@@ -307,5 +327,61 @@ public final class CustomSkyLayer {
 	 */
 	public float rotationDegrees(final float sunAngleDegrees) {
 		return this.rotate ? sunAngleDegrees * this.speed : 0.0F;
+	}
+
+	/**
+	 * Approximates the color of this layer's skybox in an arbitrary world direction,
+	 * by picking/interpolating between the two nearest of the four cached
+	 * compass-face colors (see {@link #setHorizonColors}). Used both for a single
+	 * direction (the camera's own forward vector, for non-terrain fog consumers) and
+	 * for many directions at once (baking the per-pixel terrain fog environment map -
+	 * see {@code CustomSkyEnvironmentMap}).
+	 *
+	 * <p>{@code ensureGeometry()}'s raw cube geometry places south/west/north/east at
+	 * world +Z/-X/-Z/+X (matching vanilla's own convention), but
+	 * {@code CustomSkyRenderer.drawLayer()} rotates that geometry on screen by a fixed
+	 * {@link CustomSkyRenderer#FIXED_Y_ROTATION_DEGREES} offset and then this layer's
+	 * own day-rotation before drawing it - so picking the right face requires undoing
+	 * both of those on the given direction first, in reverse order, to map it back
+	 * into the raw geometry's compass space.
+	 *
+	 * @param direction any world-space direction (only the horizontal component is used)
+	 * @param sunAngleDegrees vanilla's current sun angle, same input {@link #rotationDegrees} uses
+	 */
+	public int colorTowardDirection(final Vector3fc direction, final float sunAngleDegrees) {
+		Vector3f local = new Vector3f(direction.x(), 0.0F, direction.z());
+		if (local.lengthSquared() < 1.0E-8F) {
+			// Straight up/down: no single horizontal direction is more "toward" this
+			// layer than another, so just average all four faces evenly.
+			return ARGB.srgbLerp(0.5F, ARGB.srgbLerp(0.5F, this.southColor, this.eastColor), ARGB.srgbLerp(0.5F, this.northColor, this.westColor));
+		}
+
+		local.normalize();
+		local.rotateY((float) Math.toRadians(-CustomSkyRenderer.FIXED_Y_ROTATION_DEGREES));
+		if (this.rotate) {
+			float angleDegrees = this.rotationDegrees(sunAngleDegrees);
+			local.rotateAxis((float) Math.toRadians(-angleDegrees), this.axisX, this.axisY, this.axisZ);
+		}
+
+		// south=+Z(0deg), east=+X(90deg), north=-Z(180deg), west=-X(270deg).
+		float angleDegrees = (float) Math.toDegrees(Math.atan2(local.x, local.z));
+		if (angleDegrees < 0.0F) {
+			angleDegrees += 360.0F;
+		}
+
+		int segment = (int) (angleDegrees / 90.0F) & 3;
+		float t = (angleDegrees % 90.0F) / 90.0F;
+		int colorA = this.faceColor(segment);
+		int colorB = this.faceColor((segment + 1) & 3);
+		return ARGB.srgbLerp(t, colorA, colorB);
+	}
+
+	private int faceColor(final int segment) {
+		return switch (segment) {
+			case 0 -> this.southColor;
+			case 1 -> this.eastColor;
+			case 2 -> this.northColor;
+			default -> this.westColor;
+		};
 	}
 }

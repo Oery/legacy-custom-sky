@@ -4,6 +4,7 @@ import dev.oery.legacycustomsky.LegacyCustomSky;
 import dev.oery.legacycustomsky.client.config.LegacyCustomSkyConfig;
 import dev.oery.legacycustomsky.client.customsky.CustomSkyPipelines;
 import dev.oery.legacycustomsky.client.customsky.CustomSkyReloadListener;
+import dev.oery.legacycustomsky.client.customsky.CustomSkyTerrainPipelines;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
@@ -21,6 +22,7 @@ public class LegacyCustomSkyClient implements ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
 		CustomSkyPipelines.bootstrap();
+		CustomSkyTerrainPipelines.bootstrap();
 		ResourceLoader.get(PackType.CLIENT_RESOURCES).registerReloadListener(LegacyCustomSky.id("custom_sky"), new CustomSkyReloadListener());
 
 		ClientTickEvents.END_CLIENT_TICK.register(client -> {

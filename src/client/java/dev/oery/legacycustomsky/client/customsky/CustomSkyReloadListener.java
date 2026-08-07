@@ -1,5 +1,6 @@
 package dev.oery.legacycustomsky.client.customsky;
 
+import com.mojang.blaze3d.platform.NativeImage;
 import dev.oery.legacycustomsky.LegacyCustomSky;
 import java.io.IOException;
 import java.io.InputStream;
@@ -7,6 +8,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -17,6 +19,7 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.resources.PreparableReloadListener;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
+import net.minecraft.util.ARGB;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -156,11 +159,67 @@ public final class CustomSkyReloadListener extends SimpleReloadListener<Map<Iden
 		// placeholder is bright in and passes the rest through untouched, visibly
 		// tinting everything drawn underneath (and stacked with) that layer instead
 		// of just failing silently.
-		if (resourceManager.getResource(layer.textureLocation).isEmpty()) {
+		Optional<Resource> textureResource = resourceManager.getResource(layer.textureLocation);
+		if (textureResource.isEmpty()) {
 			LegacyCustomSky.LOGGER.warn("[CustomSky] {} references missing texture {}", propertiesId, layer.textureLocation);
 			return null;
 		}
 
+		computeHorizonColors(layer, textureResource.get());
 		return layer;
+	}
+
+	/**
+	 * Precomputes the four fog-blend colors {@link CustomSkyLayer#colorTowardDirection}
+	 * picks between at render time: the average color of a narrow band around the
+	 * vertical midpoint of each side face's texture cell (south/west/north/east, per
+	 * {@code CustomSkyRenderer}'s 3x2 atlas layout - see {@code ensureGeometry()}).
+	 * The midpoint, not an edge, is used because every vertical wall maps world-up to
+	 * texture-top (IMPLEMENTATION.md fix #3) and these faces span from camera-height
+	 * down to well below it - the true horizon sits in the middle of the cell, not at
+	 * its top (zenith-ish detail like a moon/upper starfield) or bottom.
+	 *
+	 * <p>Pure CPU pixel decode, no GL calls - safe to run here in {@code prepare()},
+	 * off the render thread, unlike {@link CustomSkyLayer#bindTexture}.
+	 */
+	private static void computeHorizonColors(final CustomSkyLayer layer, final Resource textureResource) {
+		try (InputStream in = textureResource.open(); NativeImage image = NativeImage.read(in)) {
+			int cellWidth = image.getWidth() / 3;
+			int cellHeight = image.getHeight() / 2;
+			int south = averageHorizonBand(image, 2 * cellWidth, 0, cellWidth, cellHeight);
+			int west = averageHorizonBand(image, 0, cellHeight, cellWidth, cellHeight);
+			int north = averageHorizonBand(image, cellWidth, cellHeight, cellWidth, cellHeight);
+			int east = averageHorizonBand(image, 2 * cellWidth, cellHeight, cellWidth, cellHeight);
+			layer.setHorizonColors(south, west, north, east);
+		} catch (IOException e) {
+			LegacyCustomSky.LOGGER.warn("[CustomSky] Failed to compute fog colors for {}", layer.textureLocation, e);
+		}
+	}
+
+	private static int averageHorizonBand(final NativeImage image, final int cellX, final int cellY, final int cellWidth, final int cellHeight) {
+		int bandHeight = Math.max(1, Math.round(cellHeight * 0.25F));
+		int bandY = cellY + (cellHeight - bandHeight) / 2;
+
+		long alphaSum = 0;
+		long redSum = 0;
+		long greenSum = 0;
+		long blueSum = 0;
+		int count = 0;
+		for (int y = bandY; y < bandY + bandHeight; y++) {
+			for (int x = cellX; x < cellX + cellWidth; x++) {
+				int pixel = image.getPixel(x, y);
+				alphaSum += ARGB.alpha(pixel);
+				redSum += ARGB.red(pixel);
+				greenSum += ARGB.green(pixel);
+				blueSum += ARGB.blue(pixel);
+				count++;
+			}
+		}
+
+		if (count == 0) {
+			return 0xFFFFFFFF;
+		}
+
+		return ARGB.color((int) (alphaSum / count), (int) (redSum / count), (int) (greenSum / count), (int) (blueSum / count));
 	}
 }

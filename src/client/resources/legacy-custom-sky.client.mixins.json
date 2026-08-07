@@ -3,6 +3,9 @@
 	"package": "dev.oery.legacycustomsky.client.mixin",
 	"compatibilityLevel": "JAVA_25",
 	"client": [
+		"AtmosphericFogEnvironmentMixin",
+		"ChunkSectionLayerMixin",
+		"ChunkSectionsToRenderMixin",
 		"LevelRendererMixin",
 		"SkyRendererMixin"
 	],
