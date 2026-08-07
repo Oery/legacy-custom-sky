@@ -2,6 +2,13 @@
 	"legacy-custom-sky.config.title": "Legacy Custom Sky",
 	"legacy-custom-sky.options.enabled": "Custom Sky",
 	"legacy-custom-sky.options.autoDisableClouds": "Auto-Disable Clouds",
+	"legacy-custom-sky.options.fogBlendMode": "Fog Blending",
+	"legacy-custom-sky.options.fogBlendMode.vanilla": "Vanilla",
+	"legacy-custom-sky.options.fogBlendMode.vanilla.tooltip": "Distant fog fades to the dimension's normal color, ignoring the custom sky entirely. No performance cost.",
+	"legacy-custom-sky.options.fogBlendMode.directional": "Directional",
+	"legacy-custom-sky.options.fogBlendMode.directional.tooltip": "Distant fog fades toward a single color sampled from the custom sky in the direction you're facing. Cheap, but the whole screen gets one flat fog color, which can look off with detailed skies.",
+	"legacy-custom-sky.options.fogBlendMode.perPixel": "Per-Pixel",
+	"legacy-custom-sky.options.fogBlendMode.perPixel.tooltip": "Terrain fog samples the actual custom sky per-pixel, so it matches what's really behind it in every direction. Most accurate; small added cost only where fog is visible on screen.",
 	"key.category.legacy-custom-sky.general": "Legacy Custom Sky",
 	"key.legacy-custom-sky.toggle": "Toggle Custom Sky"
 }

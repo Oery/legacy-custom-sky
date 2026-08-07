@@ -23,6 +23,7 @@ public final class LegacyCustomSkyConfig {
 
 	public boolean enabled = true;
 	public boolean autoDisableClouds = true;
+	public FogBlendMode fogBlendMode = FogBlendMode.PER_PIXEL;
 
 	public static LegacyCustomSkyConfig get() {
 		if (instance == null) {

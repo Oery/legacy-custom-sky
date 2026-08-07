@@ -1,6 +1,8 @@
 package dev.oery.legacycustomsky.client.mixin;
 
 import com.mojang.blaze3d.pipeline.RenderPipeline;
+import dev.oery.legacycustomsky.client.config.FogBlendMode;
+import dev.oery.legacycustomsky.client.config.LegacyCustomSkyConfig;
 import dev.oery.legacycustomsky.client.customsky.CustomSkyManager;
 import dev.oery.legacycustomsky.client.customsky.CustomSkyTerrainPipelines;
 import net.minecraft.client.Minecraft;
@@ -15,11 +17,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * replacement pipelines instead of vanilla's {@code SOLID_TERRAIN}/
  * {@code CUTOUT_TERRAIN}/{@code TRANSLUCENT_TERRAIN}, so terrain fog samples the
  * per-direction {@code CustomSkyEnvMap} instead of mixing to a flat color - but
- * only when the current dimension actually has an active custom sky. Without this
- * gate, every terrain fragment in every dimension (including ones no pack
- * targets, or with the mod disabled) would unconditionally pay for the extra
- * texture sample + trig in {@code custom_sky_terrain.fsh}, for no visual benefit -
- * measured as part of a real framerate regression.
+ * only when {@link LegacyCustomSkyConfig#fogBlendMode} is
+ * {@link FogBlendMode#PER_PIXEL} and the current dimension actually has an active
+ * custom sky. Without this gate, every terrain fragment in every dimension
+ * (including ones no pack targets, or with a cheaper blend mode selected) would
+ * unconditionally pay for the extra texture sample + trig in
+ * {@code custom_sky_terrain.fsh}, for no visual benefit - measured as part of a
+ * real framerate regression.
  *
  * <p>{@code pipeline()} is the single call site
  * ({@code ChunkSectionsToRender.renderGroup}: {@code renderPass.setPipeline(...
@@ -36,7 +40,9 @@ public abstract class ChunkSectionLayerMixin {
 	@Inject(method = "pipeline", at = @At("RETURN"), cancellable = true)
 	private void legacyCustomSky$useEnvMapPipeline(final CallbackInfoReturnable<RenderPipeline> cir) {
 		Minecraft mc = Minecraft.getInstance();
-		if (mc.level == null || !CustomSkyManager.hasLayers(mc.level.dimension().identifier())) {
+		if (mc.level == null
+			|| LegacyCustomSkyConfig.get().fogBlendMode != FogBlendMode.PER_PIXEL
+			|| !CustomSkyManager.hasLayers(mc.level.dimension().identifier())) {
 			return;
 		}
 

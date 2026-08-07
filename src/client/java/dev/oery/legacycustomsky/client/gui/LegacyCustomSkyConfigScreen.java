@@ -1,8 +1,12 @@
 package dev.oery.legacycustomsky.client.gui;
 
+import com.google.common.collect.ImmutableList;
+import com.mojang.serialization.Codec;
+import dev.oery.legacycustomsky.client.config.FogBlendMode;
 import dev.oery.legacycustomsky.client.config.LegacyCustomSkyConfig;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.OptionInstance;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.options.OptionsSubScreen;
 import net.minecraft.network.chat.Component;
@@ -17,6 +21,13 @@ import net.minecraft.network.chat.Component;
  */
 public final class LegacyCustomSkyConfigScreen extends OptionsSubScreen {
 	private static final Component TITLE = Component.translatable("legacy-custom-sky.config.title");
+
+	// The Codec here only feeds OptionInstance's own widget/reset machinery - this
+	// setting is persisted through LegacyCustomSkyConfig's own Gson round trip
+	// (which handles enums natively by name), not through this Codec.
+	private static final OptionInstance.Enum<FogBlendMode> FOG_BLEND_MODE_VALUES = new OptionInstance.Enum<>(
+		ImmutableList.copyOf(FogBlendMode.values()), Codec.STRING.xmap(FogBlendMode::valueOf, Enum::name)
+	);
 
 	public LegacyCustomSkyConfigScreen(final Screen parent) {
 		super(parent, Minecraft.getInstance().options, TITLE);
@@ -33,7 +44,18 @@ public final class LegacyCustomSkyConfigScreen extends OptionsSubScreen {
 			OptionInstance.createBoolean("legacy-custom-sky.options.autoDisableClouds", config.autoDisableClouds, value -> {
 				config.autoDisableClouds = value;
 				config.save();
-			})
+			}),
+			new OptionInstance<>(
+				"legacy-custom-sky.options.fogBlendMode",
+				mode -> Tooltip.create(Component.translatable(mode.tooltipKey())),
+				(caption, mode) -> Component.translatable(mode.translationKey()),
+				FOG_BLEND_MODE_VALUES,
+				config.fogBlendMode,
+				value -> {
+					config.fogBlendMode = value;
+					config.save();
+				}
+			)
 		);
 	}
 }

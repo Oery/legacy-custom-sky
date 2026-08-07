@@ -5,6 +5,7 @@ import com.mojang.blaze3d.framegraph.FrameGraphBuilder;
 import com.mojang.blaze3d.framegraph.FramePass;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.systems.RenderSystem;
+import dev.oery.legacycustomsky.client.config.FogBlendMode;
 import dev.oery.legacycustomsky.client.config.LegacyCustomSkyConfig;
 import dev.oery.legacycustomsky.client.customsky.CustomSkyEnvironmentMap;
 import dev.oery.legacycustomsky.client.customsky.CustomSkyManager;
@@ -67,11 +68,13 @@ public abstract class LevelRendererMixin {
 		}
 
 		// custom_sky_terrain.fsh (see ChunkSectionLayerMixin) only ever samples
-		// CustomSkyEnvMap when this dimension has an active custom sky - the
-		// hasLayers() check above already gates that, so there's nothing to keep
-		// fresh otherwise, and no update() call needed.
-		float partialTick = mc.getDeltaTracker().getGameTimeDeltaPartialTick(false);
-		CustomSkyEnvironmentMap.update(mc.level.dimension().identifier(), mc.level, mc.gameRenderer.mainCamera(), partialTick);
+		// CustomSkyEnvMap when this dimension has an active custom sky AND
+		// FogBlendMode.PER_PIXEL is selected - matching that gate here too, so this
+		// doesn't do pointless work baking a texture nothing will sample.
+		if (LegacyCustomSkyConfig.get().fogBlendMode == FogBlendMode.PER_PIXEL) {
+			float partialTick = mc.getDeltaTracker().getGameTimeDeltaPartialTick(false);
+			CustomSkyEnvironmentMap.update(mc.level.dimension().identifier(), mc.level, mc.gameRenderer.mainCamera(), partialTick);
+		}
 
 		FramePass pass = frame.addPass("legacy_custom_sky");
 		this.targets.main = pass.readsAndWrites(this.targets.main);
