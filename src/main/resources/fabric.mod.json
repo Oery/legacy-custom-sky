@@ -1,0 +1,31 @@
+{
+	"schemaVersion": 1,
+	"id": "legacy-custom-sky",
+	"version": "${version}",
+	"name": "legacy-custom-sky",
+	"description": "Reimplements MCPatcher's Better Skies (Custom Sky) resource pack feature as a Fabric mod.",
+	"authors": ["oery", "claude-code"],
+	"contact": {},
+	"license": "MIT",
+	"icon": "assets/legacy-custom-sky/icon.png",
+	"environment": "client",
+	"entrypoints": {
+		"main": ["dev.oery.legacycustomsky.LegacyCustomSky"],
+		"client": ["dev.oery.legacycustomsky.client.LegacyCustomSkyClient"],
+		"modmenu": [
+			"dev.oery.legacycustomsky.client.LegacyCustomSkyModMenuIntegration"
+		]
+	},
+	"mixins": [
+		{
+			"config": "legacy-custom-sky.client.mixins.json",
+			"environment": "client"
+		}
+	],
+	"depends": {
+		"fabricloader": ">=0.19.3",
+		"minecraft": "~26.2",
+		"java": ">=25",
+		"fabric-api": "*"
+	}
+}

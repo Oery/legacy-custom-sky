@@ -1,0 +1,7 @@
+{
+	"legacy-custom-sky.config.title": "Legacy Custom Sky",
+	"legacy-custom-sky.options.enabled": "Custom Sky",
+	"legacy-custom-sky.options.autoDisableClouds": "Auto-Disable Clouds",
+	"key.category.legacy-custom-sky.general": "Legacy Custom Sky",
+	"key.legacy-custom-sky.toggle": "Toggle Custom Sky"
+}
