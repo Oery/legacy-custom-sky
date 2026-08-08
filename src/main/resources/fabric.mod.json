@@ -5,7 +5,11 @@
 	"name": "${name}",
 	"description": "Reimplements MCPatcher's Better Skies (Custom Sky) resource pack feature as a Fabric mod.",
 	"authors": ["oery", "claude-code"],
-	"contact": {},
+	"contact": {
+		"homepage": "https://github.com/Oery/legacy-custom-sky",
+		"sources": "https://github.com/Oery/legacy-custom-sky",
+		"issues": "https://github.com/Oery/legacy-custom-sky/issues"
+	},
 	"license": "MIT",
 	"icon": "assets/legacy-custom-sky/icon.png",
 	"environment": "client",
